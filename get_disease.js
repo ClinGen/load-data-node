@@ -7,6 +7,15 @@ var _ = require('underscore');
 var Promise = require('bluebird');
 var MongoClient = Promise.promisifyAll(require('mongodb').MongoClient);
 
+// Command-line arguments
+var opts = require('nomnom')
+    .option('replace', {
+        abbr: 'r',
+        flag: true,
+        help: 'Replace collection if it exists; append otherwise'
+    })
+    .parse();
+
 var url = 'mongodb://localhost:27017/Spindle';
 
 // Grab the path from the command line
@@ -36,9 +45,8 @@ if (!data) {
 
 // Translate and insert the JSON data into the Mongo DB.
 MongoClient.connectAsync(url).then(function(db) {
-    var coll = db.collection('Disease2');
+    var coll = Promise.promisifyAll(db.collection('Disease2'));
     var bulk = Promise.promisifyAll(coll.initializeUnorderedBulkOp());
-    console.log(bulk);
 
     // Convert each disorder in the given source file to a Mongo bulk entry
     data.JDBOR.DisorderList.Disorder.forEach(function(disorder) {
@@ -80,6 +88,14 @@ MongoClient.connectAsync(url).then(function(db) {
         bulk.insert(disease);
     });
 
+    if (opts.replace) {
+        coll.deleteManyAsync({}).then(function(res) {
+
+        });
+    } else {
+        
+    }
+
     // We now have all the JSON data into a bulk entry. Write it to the DB
     bulk.executeAsync().then(function() {
         db.close();
@@ -90,3 +106,8 @@ MongoClient.connectAsync(url).then(function(db) {
 }).catch(function(e) {
     console.error('Error opening database: ' + e);
 });
+
+
+var deleteAllAsync = function(active, set) {
+
+};
