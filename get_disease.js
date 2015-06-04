@@ -4,11 +4,12 @@ var fs = require('fs');
 var xml2json = require('xml2json');
 var util = require('util');
 var _ = require('underscore');
-var Promise = require('bluebird');
+var Promise = require('bluebird'); // Node JS promise library
 var MongoClient = Promise.promisifyAll(require('mongodb').MongoClient);
 
-// Command-line arguments
+// Command-line argument processing
 var opts = require('nomnom')
+    .script('./get_disease.js')
     .option('replace', {
         abbr: 'r',
         flag: true,
@@ -16,12 +17,23 @@ var opts = require('nomnom')
     })
     .option('disease', {
         abbr: 'd',
+        metavar: 'FILE',
         help: 'Name of disease XML file'
     })
+    .option('db', {
+        metavar: 'NAME',
+        default: 'Spindle',
+        help: 'Name of the Mongo database to write to'
+    })
+    .option('collection', {
+        abbr: 'c',
+        metavar: 'NAME',
+        default: 'Disease',
+        help: 'Name of the database collection to write to'
+    })
     .parse();
-console.log(opts);
 
-var url = 'mongodb://localhost:27017/Spindle';
+var url = 'mongodb://localhost:27017/' + opts.db;
 
 // Grab the path from the command line
 var path = opts.disease;
@@ -50,10 +62,11 @@ if (!data) {
 
 // Translate and insert the JSON data into the Mongo DB.
 MongoClient.connectAsync(url).then(function(db) {
-    var coll = Promise.promisifyAll(db.collection('Disease2'));
+    var coll = Promise.promisifyAll(db.collection(opts.collection));
     var bulk = Promise.promisifyAll(coll.initializeUnorderedBulkOp());
 
     // Convert each disorder in the given source file to a Mongo bulk entry
+    var count = 0;
     data.JDBOR.DisorderList.Disorder.forEach(function(disorder) {
         var disease = {
             ORDOID: disorder.OrphaNumber,
@@ -92,19 +105,28 @@ MongoClient.connectAsync(url).then(function(db) {
         }
 
         bulk.insert(disease);
+        count++;
     });
 
-    var waitDeleteMany;
+    // Delete all existing entries in the collection if requested
+    var wait;
     if (opts.replace) {
-        console.log('deleting');
-        waitDeleteMany = coll.deleteManyAsync({});
+        wait = coll.deleteManyAsync({});
     } else {
-        waitDeleteMany = Promise.resolve(undefined);
+        wait = Promise.resolve(undefined);
     }
-    waitDeleteMany.then(function() {
+
+    // Write the disease data to the database
+    wait.then(function() {
         // We now have all the JSON data into a bulk entry. Write it to the DB
         bulk.executeAsync().then(function() {
             db.close();
+            if (opts.replace) {
+                console.log('Wrote %d entries to the %s collection in the %s database.', count, opts.collection, opts.db);
+                console.log('Existing collection was overwritten.');
+            } else {
+                console.log('Appended %d entries to the %s collection in the %s database.', count, opts.collection, opts.db);
+            }
         }).catch(function(e) {
             console.error('Error writing to database: ' + e);
         });
@@ -114,8 +136,3 @@ MongoClient.connectAsync(url).then(function(db) {
 }).catch(function(e) {
     console.error('Error opening database: ' + e);
 });
-
-
-var deleteAllAsync = function(active, set) {
-
-};
