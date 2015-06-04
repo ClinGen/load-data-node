@@ -14,12 +14,17 @@ var opts = require('nomnom')
         flag: true,
         help: 'Replace collection if it exists; append otherwise'
     })
+    .option('disease', {
+        abbr: 'd',
+        help: 'Name of disease XML file'
+    })
     .parse();
+console.log(opts);
 
 var url = 'mongodb://localhost:27017/Spindle';
 
 // Grab the path from the command line
-var path = process.argv.slice(2)[0];
+var path = opts.disease;
 if (!path) {
     util.log('Must specify an XML file as a source.');
     return;
@@ -50,11 +55,12 @@ MongoClient.connectAsync(url).then(function(db) {
 
     // Convert each disorder in the given source file to a Mongo bulk entry
     data.JDBOR.DisorderList.Disorder.forEach(function(disorder) {
-        var disease = {};
-        disease.ORDOID = disorder.OrphaNumber;
-        disease.FullName = disorder.Name.$t;
-        disease.Type = disorder.DisorderType.Name.$t;
-        disease.Active = "Yes";
+        var disease = {
+            ORDOID: disorder.OrphaNumber,
+            FullName: disorder.Name.$t,
+            Type: disorder.DisorderType.Name.$t,
+            Active: "Yes"
+        };
 
         // Build array of synonyms
         if (disorder.SynonymList.count > 1) {
@@ -88,20 +94,22 @@ MongoClient.connectAsync(url).then(function(db) {
         bulk.insert(disease);
     });
 
+    var waitDeleteMany;
     if (opts.replace) {
-        coll.deleteManyAsync({}).then(function(res) {
-
-        });
+        console.log('deleting');
+        waitDeleteMany = coll.deleteManyAsync({});
     } else {
-        
+        waitDeleteMany = Promise.resolve(undefined);
     }
-
-    // We now have all the JSON data into a bulk entry. Write it to the DB
-    bulk.executeAsync().then(function() {
-        db.close();
-    }).catch(function(e) {
-        console.error('Error writing to database: ' + e);
+    waitDeleteMany.then(function() {
+        // We now have all the JSON data into a bulk entry. Write it to the DB
+        bulk.executeAsync().then(function() {
+            db.close();
+        }).catch(function(e) {
+            console.error('Error writing to database: ' + e);
+        });
     });
+
 
 }).catch(function(e) {
     console.error('Error opening database: ' + e);

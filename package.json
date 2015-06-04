@@ -9,6 +9,7 @@
   "author": "Forrest Tanaka",
   "license": "ISC",
   "dependencies": {
+    "bluebird": "^2.9.27",
     "mongodb": "^2.0.33",
     "nomnom": "^1.8.1",
     "underscore": "^1.8.3",
