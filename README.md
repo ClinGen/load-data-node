@@ -18,4 +18,4 @@ At the moment, it only handles disease data. I’ll add more as I have time and 
 ## Project startup
 
 - Make sure that mongoDB is running, or `mongod`
-- Run `./get_disease --help`
+- Run `./get_disease.js --help`
